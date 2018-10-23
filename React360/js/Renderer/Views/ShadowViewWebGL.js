@@ -15,10 +15,7 @@ import type {GLViewCompatible} from '../Primitives/GLView';
 import * as Flexbox from '../FlexboxImplementation';
 import ShadowView, {type Dispatcher} from './ShadowView';
 
-type LayoutHook = (
-  number,
-  {height: number, width: number, x: number, y: number},
-) => mixed;
+type LayoutHook = (number, {height: number, width: number, x: number, y: number}) => mixed;
 
 export default class ShadowViewWebGL<T: GLViewCompatible> extends ShadowView {
   _borderRadiusAll: ?number;
@@ -27,6 +24,9 @@ export default class ShadowViewWebGL<T: GLViewCompatible> extends ShadowView {
   _borderTopRightRadius: ?number;
   _borderBottomRightRadius: ?number;
   _borderBottomLeftRadius: ?number;
+  _cursor: ?string;
+  _eventHandlers: {[event: string]: any};
+  _hasCursorEvent: boolean;
   _hasOnLayout: boolean;
   _layoutOrigin: [number, number];
   _onLayoutHook: ?LayoutHook;
@@ -38,6 +38,9 @@ export default class ShadowViewWebGL<T: GLViewCompatible> extends ShadowView {
     super();
 
     this._borderRadiusDirty = false;
+    this._cursor = null;
+    this._eventHandlers = {};
+    this._hasCursorEvent = false;
     this._hasOnLayout = false;
     this._layoutOrigin = [0, 0];
     this._zIndex = 0;
@@ -100,7 +103,7 @@ export default class ShadowViewWebGL<T: GLViewCompatible> extends ShadowView {
         this._getBorderValue(Flexbox.EDGE_TOP),
         this._getBorderValue(Flexbox.EDGE_RIGHT),
         this._getBorderValue(Flexbox.EDGE_BOTTOM),
-        this._getBorderValue(Flexbox.EDGE_LEFT),
+        this._getBorderValue(Flexbox.EDGE_LEFT)
       );
       this.view.setFrame(x + left, -(y + top), width, height);
       childrenNeedUpdate = true;
@@ -118,22 +121,18 @@ export default class ShadowViewWebGL<T: GLViewCompatible> extends ShadowView {
           ? this._borderRadiusAll
           : 0;
       this.view.setBorderRadius(
-        typeof this._borderTopLeftRadius === 'number' &&
-        this._borderTopLeftRadius > 0
+        typeof this._borderTopLeftRadius === 'number' && this._borderTopLeftRadius > 0
           ? this._borderTopLeftRadius
           : borderRadius,
-        typeof this._borderTopRightRadius === 'number' &&
-        this._borderTopRightRadius > 0
+        typeof this._borderTopRightRadius === 'number' && this._borderTopRightRadius > 0
           ? this._borderTopRightRadius
           : borderRadius,
-        typeof this._borderBottomRightRadius === 'number' &&
-        this._borderBottomRightRadius > 0
+        typeof this._borderBottomRightRadius === 'number' && this._borderBottomRightRadius > 0
           ? this._borderBottomRightRadius
           : borderRadius,
-        typeof this._borderBottomLeftRadius === 'number' &&
-        this._borderBottomLeftRadius > 0
+        typeof this._borderBottomLeftRadius === 'number' && this._borderBottomLeftRadius > 0
           ? this._borderBottomLeftRadius
-          : borderRadius,
+          : borderRadius
       );
       this._borderRadiusDirty = false;
     }
@@ -163,16 +162,39 @@ export default class ShadowViewWebGL<T: GLViewCompatible> extends ShadowView {
 
   setRenderOrder(order: number) {
     this._renderOrder = order;
+    if (this.view) {
+      this.view.getNode().renderOrder = order;
+    }
+  }
+
+  getCursor(): ?string {
+    return this._cursor;
+  }
+
+  hasCursorEvent(): boolean {
+    return this._hasCursorEvent;
+  }
+
+  setEventHandler(event: string, callback: any) {
+    if (!callback) {
+      delete this._eventHandlers[event];
+    } else {
+      this._eventHandlers[event] = callback;
+    }
+    this._hasCursorEvent = this._cursor != null || Object.keys(this._eventHandlers).length > 0;
+  }
+
+  fireEvent(event: string) {
+    const callback = this._eventHandlers[event];
+    if (callback) {
+      callback();
+    }
   }
 
   _getBorderValue(edge: number): number {
     const value = this.YGNode.getBorder(edge);
     const allValue = this.YGNode.getBorder(Flexbox.EDGE_ALL);
-    return Number.isNaN(value)
-      ? Number.isNaN(allValue)
-        ? 0
-        : allValue
-      : value;
+    return Number.isNaN(value) ? (Number.isNaN(allValue) ? 0 : allValue) : value;
   }
 
   /* style setters */
@@ -229,6 +251,15 @@ export default class ShadowViewWebGL<T: GLViewCompatible> extends ShadowView {
     }
     this._borderTopRightRadius = radius;
     this._borderRadiusDirty = true;
+  }
+
+  __setStyle_cursor(cursor: ?string) {
+    this._cursor = cursor;
+    if (cursor) {
+      this._hasCursorEvent = true;
+    } else {
+      this._hasCursorEvent = Object.keys(this._eventHandlers).length > 0;
+    }
   }
 
   __setStyle_layoutOrigin(origin: [number, number]) {

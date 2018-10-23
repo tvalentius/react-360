@@ -30,6 +30,7 @@ const FONT_WEIGHTS = {
  */
 export default class RCTText extends ShadowViewWebGL<GLView> {
   textChildren: Array<RCTText | RawText>;
+  _alignWidth: number;
   _cachedText: string;
   _geometryDirty: boolean;
   _text: FontGeometry;
@@ -39,6 +40,7 @@ export default class RCTText extends ShadowViewWebGL<GLView> {
   constructor(impl: TextImplementation) {
     super(() => new GLView());
     this.textChildren = [];
+    this._alignWidth = undefined;
     this._textColor = null;
     this._textDirty = true;
     this._geometryDirty = false;
@@ -49,10 +51,10 @@ export default class RCTText extends ShadowViewWebGL<GLView> {
       align: 'auto',
     });
     this.view.getNode().add(this._text.getNode());
+    this.__setStyle_cursor('text');
 
-    this.YGNode.setMeasureFunc(
-      (width, widthMeasureMode, height, heightMeasureMode) =>
-        this.measure(width, widthMeasureMode, height, heightMeasureMode),
+    this.YGNode.setMeasureFunc((width, widthMeasureMode, height, heightMeasureMode) =>
+      this.measure(width, widthMeasureMode, height, heightMeasureMode)
     );
   }
 
@@ -82,6 +84,11 @@ export default class RCTText extends ShadowViewWebGL<GLView> {
     this._geometryDirty = true;
   }
 
+  __setStyle_textAlign(align: string) {
+    this._text.setAlign(align);
+    this._geometryDirty = true;
+  }
+
   addChild(index: number, child: any) {
     this.textChildren.splice(index, 0, child);
     child.setParent(this);
@@ -93,22 +100,24 @@ export default class RCTText extends ShadowViewWebGL<GLView> {
     this.markTextDirty();
   }
 
+  getChildCount(): number {
+    return this.textChildren.length;
+  }
+
   setRenderOrder(order: number) {
     super.setRenderOrder(order);
     this._text.getNode().renderOrder = order;
   }
 
-  measure(
-    width: number,
-    widthMeasureMode: number,
-    height: number,
-    heightMeasureMode: number,
-  ) {
+  measure(width: number, widthMeasureMode: number, height: number, heightMeasureMode: number) {
     if (
       widthMeasureMode !== Flexbox.MEASURE_MODE_EXACTLY ||
       heightMeasureMode !== Flexbox.MEASURE_MODE_EXACTLY
     ) {
       this._text.setMaxWidth(width);
+      this._text.setAlignWidth(
+        widthMeasureMode === Flexbox.MEASURE_MODE_EXACTLY ? width : undefined
+      );
       this._text.update();
       if (widthMeasureMode !== Flexbox.MEASURE_MODE_EXACTLY) {
         width = this._text.getWidth();
@@ -177,9 +186,7 @@ export default class RCTText extends ShadowViewWebGL<GLView> {
         offX, offY, 0, 1,
       ];
       matrixMultiply4(transform, this.view.getWorldTransform());
-      this._text
-        .getNode()
-        .material.uniforms.u_transform.value.fromArray(transform);
+      this._text.getNode().material.uniforms.u_transform.value.fromArray(transform);
     }
   }
 }
